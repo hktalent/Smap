@@ -2,10 +2,12 @@ module github.com/hktalent/smap
 
 go 1.18
 
-require github.com/weppos/publicsuffix-go v0.15.0
+require (
+	github.com/hktalent/PipelineHttp v0.0.0-20220910164619-38b0f4de1862
+	github.com/weppos/publicsuffix-go v0.15.0
+)
 
 require (
-	github.com/hktalent/PipelineHttp v0.0.0-20220910164619-38b0f4de1862 // indirect
 	golang.org/x/net v0.0.0-20220225172249-27dd8689420f // indirect
 	golang.org/x/text v0.3.7 // indirect
 )
