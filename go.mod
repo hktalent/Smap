@@ -1,9 +1,9 @@
-module github.com/s0md3v/smap
+module github.com/hktalent/smap
 
 go 1.18
 
 require (
-	github.com/s0md3v/smap v0.0.0-20220415180305-391455500812
+	github.com/hktalent/smap v0.0.0-20220415180305-391455500812
 	github.com/weppos/publicsuffix-go v0.15.0
 )
 

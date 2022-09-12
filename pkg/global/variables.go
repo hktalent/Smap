@@ -11,15 +11,7 @@ func (c *count32) inc() int32 {
 	return atomic.AddInt32((*int32)(c), 1)
 }
 
-func Increment(counterType int) {
-	if counterType == 0 {
-		TotalHosts.inc()
-	} else {
-		AliveHosts.inc()
-	}
-}
-
-var (
+type Config struct {
 	PortList      []int
 	ScanStartTime time.Time
 	ScanEndTime   time.Time
@@ -32,5 +24,16 @@ var (
 	Args          map[string]string
 	TotalHosts    count32
 	AliveHosts    count32
-	Version       = "0.1.2"
+}
+
+func (r *Config) Increment(counterType int) {
+	if counterType == 0 {
+		r.TotalHosts.inc()
+	} else {
+		r.AliveHosts.inc()
+	}
+}
+
+var (
+	Version = "0.1.2"
 )

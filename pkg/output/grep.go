@@ -6,12 +6,12 @@ import (
 	"strings"
 	"time"
 
-	g "github.com/s0md3v/smap/internal/global"
+	config "github.com/hktalent/smap/pkg/global"
 )
 
 var openedGrepFile *os.File
 
-func StartGrep() {
+func StartGrep(g *config.Config) {
 	if g.GrepFilename != "-" {
 		openedGrepFile = OpenFile(g.GrepFilename)
 	}
@@ -19,7 +19,7 @@ func StartGrep() {
 	Write(fmt.Sprintf("# Nmap 9.99 scan initiated %s as: %s\n", startstr, GetCommand()), g.GrepFilename, openedGrepFile)
 }
 
-func ContinueGrep(result g.Output) {
+func ContinueGrep(result config.Output, g *config.Config) {
 	hostname := ""
 	if len(result.Hostnames) > 0 {
 		hostname = result.Hostnames[0]
@@ -43,7 +43,7 @@ func ContinueGrep(result g.Output) {
 	Write(entireString, g.GrepFilename, openedGrepFile)
 }
 
-func EndGrep() {
+func EndGrep(g *config.Config) {
 	elapsed := fmt.Sprintf("%.2f", time.Since(g.ScanStartTime).Seconds())
 	esTotal := ""
 	if g.TotalHosts > 1 {

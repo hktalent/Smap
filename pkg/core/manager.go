@@ -13,9 +13,9 @@ import (
 
 	"encoding/json"
 
-	"github.com/s0md3v/smap/internal/db"
-	g "github.com/s0md3v/smap/internal/global"
-	o "github.com/s0md3v/smap/internal/output"
+	"github.com/hktalent/smap/pkg/db"
+	config "github.com/hktalent/smap/pkg/global"
+	o "github.com/hktalent/smap/pkg/output"
 	"github.com/weppos/publicsuffix-go/publicsuffix"
 )
 
@@ -25,7 +25,7 @@ var (
 	activeEnders   sync.WaitGroup
 	activeObjects  sync.WaitGroup
 	targetsChannel = make(chan scanObject, 3)
-	outputChannel  = make(chan g.Output, 1000)
+	outputChannel  = make(chan config.Output, 1000)
 	reAddressRange = regexp.MustCompile(`^\d{1,3}(-\d{1,3})?\.\d{1,3}(-\d{1,3})?\.\d{1,3}(-\d{1,3})?\.\d{1,3}(-\d{1,3})?$`)
 )
 
@@ -44,7 +44,7 @@ type respone struct {
 	Vulns     []string `json:"vulns"`
 }
 
-func getPorts() []int {
+func getPorts(g *config.Config) []int {
 	thesePorts := []int{}
 	if value, ok := g.Args["p"]; ok {
 		for _, port := range strings.Split(value, ",") {
@@ -108,11 +108,11 @@ func incIP(ip net.IP) {
 	}
 }
 
-func handleOutput() {
+func handleOutput(g *config.Config) {
 	var (
-		startOutput    []func()
-		continueOutput []func(g.Output)
-		endOutput      []func()
+		startOutput    []func(*config.Config)
+		continueOutput []func(config.Output, *config.Config)
+		endOutput      []func(*config.Config)
 	)
 
 	activeEnders.Add(1)
@@ -126,67 +126,67 @@ func handleOutput() {
 			g.GrepFilename = value + ".gnmap"
 			g.Args["oN"] = value + ".nmap"
 		}
-		startOutput = []func(){o.StartXML, o.StartGrep, o.StartNmap}
-		continueOutput = []func(g.Output){o.ContinueXML, o.ContinueGrep, o.ContinueNmap}
-		endOutput = []func(){o.EndXML, o.EndGrep, o.EndNmap}
+		startOutput = []func(*config.Config){o.StartXML, o.StartGrep, o.StartNmap}
+		continueOutput = []func(config.Output, *config.Config){o.ContinueXML, o.ContinueGrep, o.ContinueNmap}
+		endOutput = []func(*config.Config){o.EndXML, o.EndGrep, o.EndNmap}
 	} else if value, ok := g.Args["oX"]; ok {
-		startOutput = []func(){o.StartXML}
-		continueOutput = []func(g.Output){o.ContinueXML}
-		endOutput = []func(){o.EndXML}
+		startOutput = []func(*config.Config){o.StartXML}
+		continueOutput = []func(config.Output, *config.Config){o.ContinueXML}
+		endOutput = []func(*config.Config){o.EndXML}
 		g.XmlFilename = value
 	} else if value, ok := g.Args["oG"]; ok {
-		startOutput = []func(){o.StartGrep}
-		continueOutput = []func(g.Output){o.ContinueGrep}
-		endOutput = []func(){o.EndGrep}
+		startOutput = []func(*config.Config){o.StartGrep}
+		continueOutput = []func(config.Output, *config.Config){o.ContinueGrep}
+		endOutput = []func(*config.Config){o.EndGrep}
 		g.GrepFilename = value
 	} else if value, ok := g.Args["oJ"]; ok {
-		startOutput = []func(){o.StartJson}
-		continueOutput = []func(g.Output){o.ContinueJson}
-		endOutput = []func(){o.EndJson}
+		startOutput = []func(*config.Config){o.StartJson}
+		continueOutput = []func(config.Output, *config.Config){o.ContinueJson}
+		endOutput = []func(*config.Config){o.EndJson}
 		g.JsonFilename = value
 	} else if value, ok := g.Args["oS"]; ok {
-		startOutput = []func(){o.StartSmap}
-		continueOutput = []func(g.Output){o.ContinueSmap}
-		endOutput = []func(){o.EndSmap}
+		startOutput = []func(*config.Config){o.StartSmap}
+		continueOutput = []func(config.Output, *config.Config){o.ContinueSmap}
+		endOutput = []func(*config.Config){o.EndSmap}
 		g.SmapFilename = value
-	}  else if value, ok := g.Args["oP"]; ok {
-		startOutput = []func(){o.StartPair}
-		continueOutput = []func(g.Output){o.ContinuePair}
-		endOutput = []func(){o.EndPair}
+	} else if value, ok := g.Args["oP"]; ok {
+		startOutput = []func(*config.Config){o.StartPair}
+		continueOutput = []func(config.Output, *config.Config){o.ContinuePair}
+		endOutput = []func(*config.Config){o.EndPair}
 		g.PairFilename = value
 	} else {
-		startOutput = []func(){o.StartNmap}
-		continueOutput = []func(g.Output){o.ContinueNmap}
-		endOutput = []func(){o.EndNmap}
+		startOutput = []func(*config.Config){o.StartNmap}
+		continueOutput = []func(config.Output, *config.Config){o.ContinueNmap}
+		endOutput = []func(*config.Config){o.EndNmap}
 	}
 	for _, function := range startOutput {
-		function()
+		function(g)
 	}
 	for output := range outputChannel {
 		for _, function := range continueOutput {
-			function(output)
+			function(output, g)
 		}
 		activeOutputs.Done()
 	}
 	for _, function := range endOutput {
-		function()
+		function(g)
 		activeEnders.Done()
 	}
 }
 
-func scanner() {
+func scanner(g *config.Config) {
 	threads := make(chan bool, 3)
 	for target := range targetsChannel {
 		threads <- true
 		go func(target scanObject) {
-			processScanObject(target)
+			processScanObject(target, g)
 			activeScans.Done()
 			<-threads
 		}(target)
 	}
 }
 
-func createScanObjects(object string) {
+func createScanObjects(object string, g *config.Config) {
 	activeScans.Add(1)
 	var oneObject scanObject
 	oneObject.Ports = g.PortList
@@ -220,11 +220,11 @@ func createScanObjects(object string) {
 	}
 }
 
-func processScanObject(object scanObject) {
+func processScanObject(object scanObject, g *config.Config) {
 	g.Increment(0)
 	scanStarted := time.Now()
 	response := Query(object.IP)
-	var output g.Output
+	var output config.Output
 	if len(response) < 50 {
 		return
 	} else {
@@ -258,6 +258,7 @@ func processScanObject(object scanObject) {
 }
 
 func Init() {
+	g := &config.Config{}
 	args, extra, invalid := ParseArgs()
 	if invalid {
 		fmt.Println("One or more of your arguments are invalid. Refer to docs.\nQUITTING!")
@@ -269,10 +270,10 @@ func Init() {
 	g.Args = args
 	json.Unmarshal(db.NmapSigs, &Probes)
 	json.Unmarshal(db.NmapTable, &Table)
-	g.PortList = getPorts()
+	g.PortList = getPorts(g)
 	g.ScanStartTime = time.Now()
-	go scanner()
-	go handleOutput()
+	go scanner(g)
+	go handleOutput(g)
 	if value, ok := g.Args["iL"]; ok {
 		scanner := bufio.NewScanner(os.Stdin)
 		if value != "-" {
@@ -284,7 +285,7 @@ func Init() {
 			scanner = bufio.NewScanner(file)
 		}
 		for scanner.Scan() {
-			createScanObjects(scanner.Text())
+			createScanObjects(scanner.Text(), g)
 		}
 
 		if err := scanner.Err(); err != nil {
@@ -296,7 +297,7 @@ func Init() {
 			activeObjects.Add(1)
 			threads <- true
 			go func(object string) {
-				createScanObjects(object)
+				createScanObjects(object, g)
 				<-threads
 				activeObjects.Done()
 			}(arg)

@@ -4,20 +4,20 @@ import (
 	"encoding/json"
 	"os"
 
-	g "github.com/s0md3v/smap/internal/global"
+	config "github.com/hktalent/smap/pkg/global"
 )
 
 var firstDone = false
 var openedJsonFile *os.File
 
-func StartJson() {
+func StartJson(g *config.Config) {
 	if g.JsonFilename != "-" {
 		openedJsonFile = OpenFile(g.JsonFilename)
 	}
 	Write("[", g.JsonFilename, openedJsonFile)
 }
 
-func ContinueJson(result g.Output) {
+func ContinueJson(result config.Output, g *config.Config) {
 	prefix := ""
 	if firstDone {
 		prefix = ","
@@ -27,7 +27,7 @@ func ContinueJson(result g.Output) {
 	Write(prefix+string(jsoned), g.JsonFilename, openedJsonFile)
 }
 
-func EndJson() {
+func EndJson(g *config.Config) {
 	Write("]", g.JsonFilename, openedJsonFile)
 	defer openedJsonFile.Close()
 }

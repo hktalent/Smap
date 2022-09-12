@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	g "github.com/s0md3v/smap/internal/global"
+	config "github.com/hktalent/smap/pkg/global"
 )
 
 var openedNmapFile *os.File
@@ -16,7 +16,7 @@ func pad(str string, n int) string {
 	return strings.Repeat(" ", n) + str
 }
 
-func StartNmap() {
+func StartNmap(g *config.Config) {
 	if value, ok := g.Args["oN"]; ok {
 		openedNmapFile = OpenFile(value)
 		startstr := ConvertTime(g.ScanStartTime, "nmap-file")
@@ -27,7 +27,7 @@ func StartNmap() {
 	}
 }
 
-func ContinueNmap(result g.Output) {
+func ContinueNmap(result config.Output, g *config.Config) {
 	longestPort := 5
 	longestService := 7
 	for _, port := range result.Ports {
@@ -84,7 +84,7 @@ func ContinueNmap(result g.Output) {
 	}
 }
 
-func EndNmap() {
+func EndNmap(g *config.Config) {
 	elapsed := fmt.Sprintf("%.2f", time.Since(g.ScanStartTime).Seconds())
 	footer := "Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .\n"
 	esTotal := ""

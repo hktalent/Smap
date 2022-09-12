@@ -4,6 +4,7 @@ import (
 	"time"
 )
 
+// 资产信息
 type Contender struct {
 	Service    string   `json:"service"`
 	Cpes       []string `json:"cpes"`
@@ -19,11 +20,14 @@ type Contender struct {
 	Score      int      `json:"score,omitempty"`
 }
 
+// 系统、端口信息
 type OS struct {
 	Name string   `json:"name"`
 	Cpes []string `json:"cpes"`
 	Port int      `json:"port"`
 }
+
+// 输出信息
 type Output struct {
 	IP        string    `json:"ip"`
 	Hostnames []string  `json:"hostnames"`
@@ -36,6 +40,7 @@ type Output struct {
 	OS        OS        `json:"os,omitempty"`
 }
 
+// 端口信息
 type Port struct {
 	Port     int      `json:"port"`
 	Service  string   `json:"service"`

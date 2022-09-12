@@ -5,19 +5,19 @@ import (
 	"os"
 	"strings"
 
-	g "github.com/s0md3v/smap/internal/global"
+	config "github.com/hktalent/smap/pkg/global"
 )
 
 var openedSmapFile *os.File
 
-func StartSmap() {
+func StartSmap(g *config.Config) {
 	if g.SmapFilename != "-" {
 		openedSmapFile = OpenFile(g.SmapFilename)
 	}
-	Write(fmt.Sprintf("\n\tSmap (%s)\n", g.Version), g.SmapFilename, openedSmapFile)
+	Write(fmt.Sprintf("\n\tSmap (%s)\n", config.Version), g.SmapFilename, openedSmapFile)
 }
 
-func ContinueSmap(result g.Output) {
+func ContinueSmap(result config.Output, g *config.Config) {
 	thisString := ""
 	hostnames := result.Hostnames
 	if result.UHostname != "" {
@@ -53,5 +53,5 @@ func ContinueSmap(result g.Output) {
 	Write(thisString, g.SmapFilename, openedSmapFile)
 }
 
-func EndSmap() {
+func EndSmap(g *config.Config) {
 }

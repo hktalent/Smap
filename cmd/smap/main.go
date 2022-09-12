@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/s0md3v/smap/internal/core"
+	"github.com/hktalent/smap/pkg/core"
 )
 
 func main() {
