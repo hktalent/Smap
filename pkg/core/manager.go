@@ -2,7 +2,10 @@ package core
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"github.com/hktalent/PipelineHttp"
+	pipHttp "github.com/hktalent/PipelineHttp"
 	"net"
 	"os"
 	"regexp"
@@ -19,15 +22,28 @@ import (
 	"github.com/weppos/publicsuffix-go/publicsuffix"
 )
 
+type ManagerScan struct {
+	ActiveScans    sync.WaitGroup
+	ActiveOutputs  sync.WaitGroup
+	ActiveEnters   sync.WaitGroup
+	ActiveObjects  sync.WaitGroup
+	TargetsChannel chan scanObject
+	OutputChannel  chan config.Output
+	Config         *config.Config
+	Client         *PipelineHttp.PipelineHttp
+}
+
 var (
-	activeScans    sync.WaitGroup
-	activeOutputs  sync.WaitGroup
-	activeEnders   sync.WaitGroup
-	activeObjects  sync.WaitGroup
-	targetsChannel = make(chan scanObject, 3)
-	outputChannel  = make(chan config.Output, 1000)
 	reAddressRange = regexp.MustCompile(`^\d{1,3}(-\d{1,3})?\.\d{1,3}(-\d{1,3})?\.\d{1,3}(-\d{1,3})?\.\d{1,3}(-\d{1,3})?$`)
 )
+
+func NewManagerScan() *ManagerScan {
+	return &ManagerScan{
+		TargetsChannel: make(chan scanObject, 3),
+		OutputChannel:  make(chan config.Output, 1000),
+		Client:         pipHttp.NewPipelineHttp(),
+	}
+}
 
 type scanObject struct {
 	IP       string
@@ -108,16 +124,16 @@ func incIP(ip net.IP) {
 	}
 }
 
-func handleOutput(g *config.Config) {
+func (r *ManagerScan) handleOutput(g *config.Config) {
 	var (
 		startOutput    []func(*config.Config)
 		continueOutput []func(config.Output, *config.Config)
 		endOutput      []func(*config.Config)
 	)
 
-	activeEnders.Add(1)
+	r.ActiveEnters.Add(1)
 	if value, ok := g.Args["oA"]; ok {
-		activeEnders.Add(2)
+		r.ActiveEnters.Add(2)
 		if value == "-" {
 			fmt.Fprint(os.Stderr, "Cannot display multiple output types to stdout.\nQUITTING!\n")
 			os.Exit(1)
@@ -162,73 +178,73 @@ func handleOutput(g *config.Config) {
 	for _, function := range startOutput {
 		function(g)
 	}
-	for output := range outputChannel {
+	for output := range r.OutputChannel {
 		for _, function := range continueOutput {
 			function(output, g)
 		}
-		activeOutputs.Done()
+		r.ActiveOutputs.Done()
 	}
 	for _, function := range endOutput {
 		function(g)
-		activeEnders.Done()
+		r.ActiveEnters.Done()
 	}
 }
 
-func scanner(g *config.Config) {
+func (r *ManagerScan) scanner(g *config.Config) {
 	threads := make(chan bool, 3)
-	for target := range targetsChannel {
+	for target := range r.TargetsChannel {
 		threads <- true
 		go func(target scanObject) {
-			processScanObject(target, g)
-			activeScans.Done()
+			r.processScanObject(target, g)
+			r.ActiveScans.Done()
 			<-threads
 		}(target)
 	}
 }
 
-func createScanObjects(object string, g *config.Config) {
-	activeScans.Add(1)
+func (r *ManagerScan) createScanObjects(object string, g *config.Config) {
+	r.ActiveScans.Add(1)
 	var oneObject scanObject
 	oneObject.Ports = g.PortList
 	if isIPv4(object) {
 		oneObject.IP = object
-		targetsChannel <- oneObject
+		r.TargetsChannel <- oneObject
 	} else if strings.Contains(object, "/") && isIPv4(strings.Split(object, "/")[0]) {
-		activeScans.Done()
+		r.ActiveScans.Done()
 		ip, ipnet, err := net.ParseCIDR(object)
 		if err != nil {
 			return
 		}
 		for ip := ip.Mask(ipnet.Mask); ipnet.Contains(ip); incIP(ip) {
 			oneObject.IP = ip.String()
-			activeScans.Add(1)
-			targetsChannel <- oneObject
+			r.ActiveScans.Add(1)
+			r.TargetsChannel <- oneObject
 		}
 	} else if isHostname(object) {
 		ip := hostnameToIP(object)
 		if ip != "" {
 			oneObject.IP = ip
 			oneObject.Hostname = object
-			targetsChannel <- oneObject
+			r.TargetsChannel <- oneObject
 		} else {
-			activeScans.Done()
+			r.ActiveScans.Done()
 		}
 	} else if isAddressRange(object) {
 		return
 	} else {
-		activeScans.Done()
+		r.ActiveScans.Done()
 	}
 }
 
-func processScanObject(object scanObject, g *config.Config) {
+func (r *ManagerScan) processScanObject(object scanObject, g *config.Config) {
 	g.Increment(0)
 	scanStarted := time.Now()
-	response := Query(object.IP)
+	response := r.Query(object.IP)
 	var output config.Output
 	if len(response) < 50 {
 		return
 	} else {
-		activeOutputs.Add(1)
+		r.ActiveOutputs.Add(1)
 	}
 	var data respone
 	json.Unmarshal(response, &data)
@@ -250,66 +266,71 @@ func processScanObject(object scanObject, g *config.Config) {
 	} else {
 		filteredPorts = data.Ports
 	}
-	output.Ports, output.OS = Correlate(filteredPorts, data.Cpes)
+	output.Ports, output.OS = Correlate(filteredPorts, data.Cpes, g)
 	output.Start = scanStarted
 	output.End = time.Now()
 	g.Increment(1)
-	outputChannel <- output
+	r.OutputChannel <- output
 }
 
-func Init() {
-	g := &config.Config{}
-	args, extra, invalid := ParseArgs()
+func (r *ManagerScan) Close() {
+	close(r.OutputChannel)
+	close(r.TargetsChannel)
+	r.Config.Close()
+}
+func (r *ManagerScan) Start(aArgs []string) error {
+	defer r.Close()
+	g := config.NewConfig()
+	r.Config = g
+
+	args, extra, invalid := ParseArgs(aArgs)
 	if invalid {
-		fmt.Println("One or more of your arguments are invalid. Refer to docs.\nQUITTING!")
-		os.Exit(1)
-	} else if _, ok := args["h"]; ok || len(os.Args) == 1 {
-		fmt.Print(db.HelpText)
-		os.Exit(0)
+		return errors.New("One or more of your arguments are invalid. Refer to docs.\nQUITTING!")
+	} else if _, ok := args["h"]; ok {
+		return errors.New(db.HelpText)
 	}
 	g.Args = args
-	json.Unmarshal(db.NmapSigs, &Probes)
-	json.Unmarshal(db.NmapTable, &Table)
+	json.Unmarshal(db.NmapSigs, &g.Probes)
+	json.Unmarshal(db.NmapTable, &g.Table)
 	g.PortList = getPorts(g)
 	g.ScanStartTime = time.Now()
-	go scanner(g)
-	go handleOutput(g)
+	go r.scanner(g)
+	go r.handleOutput(g)
 	if value, ok := g.Args["iL"]; ok {
 		scanner := bufio.NewScanner(os.Stdin)
 		if value != "-" {
 			file, err := os.Open(value)
 			if err != nil {
-				os.Exit(1)
+				return err
 			}
 			defer file.Close()
 			scanner = bufio.NewScanner(file)
 		}
 		for scanner.Scan() {
-			createScanObjects(scanner.Text(), g)
+			r.createScanObjects(scanner.Text(), g)
 		}
 
 		if err := scanner.Err(); err != nil {
-			os.Exit(1)
+			return err
 		}
 	} else if len(extra) != 0 {
 		threads := make(chan bool, 3)
 		for _, arg := range extra {
-			activeObjects.Add(1)
+			r.ActiveObjects.Add(1)
 			threads <- true
 			go func(object string) {
-				createScanObjects(object, g)
+				r.createScanObjects(object, g)
 				<-threads
-				activeObjects.Done()
+				r.ActiveObjects.Done()
 			}(arg)
 		}
-		activeObjects.Wait()
+		r.ActiveObjects.Wait()
 	} else {
 		fmt.Println("WARNING: No targets were specified, so 0 hosts scanned.")
 	}
-	activeScans.Wait()
-	close(targetsChannel)
+	r.ActiveScans.Wait()
 	g.ScanEndTime = time.Now()
-	activeOutputs.Wait()
-	close(outputChannel)
-	activeEnders.Wait()
+	r.ActiveOutputs.Wait()
+	r.ActiveEnters.Wait()
+	return nil
 }

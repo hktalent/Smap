@@ -7,9 +7,6 @@ import (
 	g "github.com/hktalent/smap/pkg/global"
 )
 
-var Probes []g.Contender
-var Table map[string]string
-
 func deleteString(s []string, i int) []string {
 	return append(s[:i], s[i+1:]...)
 }
@@ -23,13 +20,13 @@ func containsInt(array []int, item int) bool {
 	return false
 }
 
-func Correlate(ports []int, cpes []string) ([]g.Port, g.OS) {
+func Correlate(ports []int, cpes []string, g1 *g.Config) ([]g.Port, g.OS) {
 	contenders := map[int]g.Contender{}
 	used_cpes := map[string]int{}
 	result := []g.Port{}
 	var thisOS g.OS
 	duplicateMap := map[string][]int{} // {joined_cpe: [score, port]}
-	for _, service := range Probes {
+	for _, service := range g1.Probes {
 		cpeMatched := false
 		thisContender := service
 		for _, cpe := range service.Cpes {
@@ -144,7 +141,7 @@ func Correlate(ports []int, cpes []string) ([]g.Port, g.OS) {
 	for _, port := range orphan_ports {
 		dummyPort := g.Port{}
 		dummyPort.Port = port
-		if value, ok := Table[strconv.Itoa(port)]; ok {
+		if value, ok := g1.Table[strconv.Itoa(port)]; ok {
 			dummyPort.Service = value + "?"
 		}
 		dummyPort.Protocol = "tcp"

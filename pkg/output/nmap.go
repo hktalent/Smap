@@ -2,7 +2,6 @@ package output
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -10,20 +9,18 @@ import (
 	config "github.com/hktalent/smap/pkg/global"
 )
 
-var openedNmapFile *os.File
-
 func pad(str string, n int) string {
 	return strings.Repeat(" ", n) + str
 }
 
 func StartNmap(g *config.Config) {
 	if value, ok := g.Args["oN"]; ok {
-		openedNmapFile = OpenFile(value)
+		g.OpenedSmapFile = OpenFile(value)
 		startstr := ConvertTime(g.ScanStartTime, "nmap-file")
-		Write(fmt.Sprintf("# Starting Nmap 9.99 ( https://nmap.org ) at %s as: %s\n", startstr, GetCommand()), value, openedNmapFile)
+		Write(fmt.Sprintf("# Starting Nmap 9.99 ( https://nmap.org ) at %s as: %s\n", startstr, GetCommand()), value, g.OpenedSmapFile)
 	} else {
 		startstr := ConvertTime(g.ScanStartTime, "nmap-stdout")
-		Write(fmt.Sprintf("Starting Nmap 9.99 ( https://nmap.org ) at %s\n", startstr), "-", openedNmapFile)
+		Write(fmt.Sprintf("Starting Nmap 9.99 ( https://nmap.org ) at %s\n", startstr), "-", g.OpenedSmapFile)
 	}
 }
 
@@ -78,9 +75,9 @@ func ContinueNmap(result config.Output, g *config.Config) {
 	thisOutput += serviceString
 	thisOutput += "\n"
 	if value, ok := g.Args["oN"]; ok {
-		Write(thisOutput, value, openedNmapFile)
+		Write(thisOutput, value, g.OpenedSmapFile)
 	} else {
-		Write(thisOutput, "-", openedNmapFile)
+		Write(thisOutput, "-", g.OpenedSmapFile)
 	}
 }
 
@@ -98,10 +95,10 @@ func EndNmap(g *config.Config) {
 	if value, ok := g.Args["oN"]; ok {
 		endstr := ConvertTime(g.ScanEndTime, "nmap-file")
 		footer += fmt.Sprintf("# Nmap done at %s -- %d IP address%s (%d host%s up) scanned in %s seconds\n", endstr, g.TotalHosts, esTotal, g.AliveHosts, sAlive, elapsed)
-		Write(footer, value, openedNmapFile)
+		Write(footer, value, g.OpenedSmapFile)
 	} else {
 		footer += fmt.Sprintf("Nmap done: %d IP address%s (%d host%s up) scanned in %s seconds\n", g.TotalHosts, esTotal, g.AliveHosts, sAlive, elapsed)
-		Write(footer, "-", openedNmapFile)
+		Write(footer, "-", g.OpenedSmapFile)
 	}
-	defer openedNmapFile.Close()
+	defer g.OpenedSmapFile.Close()
 }

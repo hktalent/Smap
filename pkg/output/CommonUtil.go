@@ -10,7 +10,6 @@ import (
 func GetCommand() string {
 	return "nmap " + strings.Join(os.Args[1:], " ")
 }
-
 func ConvertTime(unixTime time.Time, format string) string {
 	if format == "nmap-file" {
 		parts := strings.Split(strings.Replace(unixTime.Format(time.RFC1123), ",", "", 1), " ")

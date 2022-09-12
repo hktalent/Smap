@@ -2,21 +2,18 @@ package output
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
 	config "github.com/hktalent/smap/pkg/global"
 )
 
-var openedGrepFile *os.File
-
 func StartGrep(g *config.Config) {
 	if g.GrepFilename != "-" {
-		openedGrepFile = OpenFile(g.GrepFilename)
+		g.OpenedGrepFile = OpenFile(g.GrepFilename)
 	}
 	startstr := ConvertTime(g.ScanStartTime, "nmap-file")
-	Write(fmt.Sprintf("# Nmap 9.99 scan initiated %s as: %s\n", startstr, GetCommand()), g.GrepFilename, openedGrepFile)
+	Write(fmt.Sprintf("# Nmap 9.99 scan initiated %s as: %s\n", startstr, GetCommand()), g.GrepFilename, g.OpenedGrepFile)
 }
 
 func ContinueGrep(result config.Output, g *config.Config) {
@@ -40,7 +37,7 @@ func ContinueGrep(result config.Output, g *config.Config) {
 		thesePorts = append(thesePorts, thisPort)
 	}
 	entireString += fmt.Sprintf("%s Ports: %s\n", hostPrefix, strings.Join(thesePorts, ", "))
-	Write(entireString, g.GrepFilename, openedGrepFile)
+	Write(entireString, g.GrepFilename, g.OpenedGrepFile)
 }
 
 func EndGrep(g *config.Config) {
@@ -53,6 +50,6 @@ func EndGrep(g *config.Config) {
 	if g.AliveHosts > 1 {
 		sAlive = "s"
 	}
-	Write(fmt.Sprintf("# Nmap done at %s -- %d IP address%s (%d host%s up) scanned in %s seconds\n", ConvertTime(g.ScanEndTime, "nmap-file"), g.TotalHosts, esTotal, g.AliveHosts, sAlive, elapsed), g.GrepFilename, openedGrepFile)
-	defer openedGrepFile.Close()
+	Write(fmt.Sprintf("# Nmap done at %s -- %d IP address%s (%d host%s up) scanned in %s seconds\n", ConvertTime(g.ScanEndTime, "nmap-file"), g.TotalHosts, esTotal, g.AliveHosts, sAlive, elapsed), g.GrepFilename, g.OpenedGrepFile)
+	defer g.OpenedGrepFile.Close()
 }

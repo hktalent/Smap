@@ -1,13 +1,13 @@
 package core
 
 import (
-	"os"
 	"regexp"
 	"strings"
 )
 
 var reValidPair = regexp.MustCompile(`^([-]{1,2}[A-Za-z-]+)(\d.*)?`)
 
+// 校验参数
 var validArgs = map[string]bool{ // name : is_boolean_type
 	"iL":                  false,
 	"iR":                  false,
@@ -122,6 +122,13 @@ var validArgs = map[string]bool{ // name : is_boolean_type
 	"h":                   true,
 }
 
+const (
+	WhatToDo_error     int = -1
+	WhatToDo_next      int = 0
+	WhatToDo_value     int = 1
+	WhatToDo_extraData int = 2
+)
+
 func whatToDo(token string, lastAction int) (string, int) {
 	/*
 	   -1 = error
@@ -130,39 +137,42 @@ func whatToDo(token string, lastAction int) (string, int) {
 	    2 = treat as extra data
 	*/
 	if strings.HasPrefix(token, "-") {
-		if lastAction == 1 {
+		if lastAction == WhatToDo_value {
 			if token == "-" {
-				return token, 0
+				return token, WhatToDo_next
 			}
-			return token, -1
+			return token, WhatToDo_error
 		}
 		newToken := strings.TrimPrefix(strings.TrimPrefix(token, "-"), "-")
 		if newToken == "6" {
-			return newToken, 0
+			return newToken, WhatToDo_next
 		}
-		argName := strings.Replace(newToken, "_", "-", -1)
+		argName := strings.Replace(newToken, "_", "-", WhatToDo_error)
 		if boolType, ok := validArgs[argName]; ok {
 			if boolType {
-				return argName, 0
+				return argName, WhatToDo_next
 			}
-			return argName, 1
+			return argName, WhatToDo_value
 		}
-		return argName, -1
-	} else if lastAction == 1 {
-		return token, 0
+		return argName, WhatToDo_error
+	} else if lastAction == WhatToDo_value {
+		return token, WhatToDo_next
 	}
-	return token, 2
+	return token, WhatToDo_extraData
 }
 
-func ParseArgs() (map[string]string, []string, bool) {
+// 参数解析
+//
+//	参数以 - 开头，参数与值之间 可以与 = 相连
+func ParseArgs(args []string) (map[string]string, []string, bool) {
 	var lastAction int
 	var lastArg string
 	var extra []string
 	argPair := map[string]string{}
-	for _, token := range os.Args[1:] {
+	for _, token := range args {
 		groups := reValidPair.FindStringSubmatch(token)
 		if strings.HasPrefix(token, "-") && (strings.Contains(token, "=") || groups != nil) {
-			if lastAction == 1 {
+			if lastAction == WhatToDo_value {
 				return argPair, extra, true
 			}
 			thisArgName := strings.Split(token, "=")[0]
@@ -170,17 +180,17 @@ func ParseArgs() (map[string]string, []string, bool) {
 				thisArgName = groups[1]
 			}
 			cleaned, action := whatToDo(thisArgName, lastAction)
-			if action == 1 {
+			if action == WhatToDo_value {
 				if groups != nil {
 					argPair[cleaned] = groups[2]
 				} else {
-					argPair[cleaned] = strings.Replace(token, thisArgName+"=", "", 1)
+					argPair[cleaned] = strings.Replace(token, thisArgName+"=", "", WhatToDo_value)
 				}
-			} else if action == 0 {
+			} else if action == WhatToDo_next {
 				argPair[cleaned] = ""
-			} else if action == 2 {
+			} else if action == WhatToDo_extraData {
 				extra = append(extra, cleaned)
-			} else if action == -1 {
+			} else if action == WhatToDo_error {
 				return argPair, extra, true
 			}
 			lastArg = cleaned
@@ -188,18 +198,18 @@ func ParseArgs() (map[string]string, []string, bool) {
 			continue
 		}
 		cleaned, action := whatToDo(token, lastAction)
-		if action == 2 {
+		if action == WhatToDo_extraData {
 			extra = append(extra, cleaned)
-		} else if action == 1 {
+		} else if action == WhatToDo_value {
 			lastArg = cleaned
-		} else if action == -1 {
+		} else if action == WhatToDo_error {
 			return argPair, extra, true
-		} else if action == 0 && lastAction == 1 {
+		} else if action == WhatToDo_next && lastAction == WhatToDo_value {
 			argPair[lastArg] = cleaned
 		}
 		lastAction = action
 	}
-	if lastAction == 1 {
+	if lastAction == WhatToDo_value {
 		return argPair, extra, true
 	}
 	return argPair, extra, false

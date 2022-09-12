@@ -2,19 +2,16 @@ package output
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	config "github.com/hktalent/smap/pkg/global"
 )
 
-var openedSmapFile *os.File
-
 func StartSmap(g *config.Config) {
 	if g.SmapFilename != "-" {
-		openedSmapFile = OpenFile(g.SmapFilename)
+		g.OpenedSmapFile = OpenFile(g.SmapFilename)
 	}
-	Write(fmt.Sprintf("\n\tSmap (%s)\n", config.Version), g.SmapFilename, openedSmapFile)
+	Write(fmt.Sprintf("\n\tSmap (%s)\n", config.Version), g.SmapFilename, g.OpenedSmapFile)
 }
 
 func ContinueSmap(result config.Output, g *config.Config) {
@@ -50,8 +47,9 @@ func ContinueSmap(result config.Output, g *config.Config) {
 	if len(result.Vulns) != 0 {
 		thisString += fmt.Sprintf("  - Vulns: %s\n", strings.Join(result.Vulns, ", "))
 	}
-	Write(thisString, g.SmapFilename, openedSmapFile)
+	Write(thisString, g.SmapFilename, g.OpenedSmapFile)
 }
 
 func EndSmap(g *config.Config) {
+	g.OpenedSmapFile.Close()
 }
