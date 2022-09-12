@@ -19,6 +19,8 @@ jobs:
         with:
           go-version: '1.x'
         id: go
+      - name: Install Dependences
+          run: go tool dist install -v pkg/runtime; go install -v -a std
 
       - name: run GoReleaser
         uses: goreleaser/goreleaser-action@master
