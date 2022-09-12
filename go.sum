@@ -1,5 +1,3 @@
-github.com/hktalent/PipelineHttp v0.0.0-20220910164619-38b0f4de1862 h1:KIqQTsGOVLKOpbUR8iVCtHnllZXHsAyhLq79FhF5MWM=
-github.com/hktalent/PipelineHttp v0.0.0-20220910164619-38b0f4de1862/go.mod h1:ob5VpIRDpTN0uCLV8lsj92/uUQW6X9cjHFEH/3G6BjA=
 github.com/hktalent/PipelineHttp v0.0.0-20220912094528-3647f88f7239 h1:qNkFxs3URyqQt6Ikrj2gf3O0cpFA5h2mkLwq7HtTA1g=
 github.com/hktalent/PipelineHttp v0.0.0-20220912094528-3647f88f7239/go.mod h1:ob5VpIRDpTN0uCLV8lsj92/uUQW6X9cjHFEH/3G6BjA=
 github.com/weppos/publicsuffix-go v0.15.0 h1:2uQCwDczZ8YZe5uD0mM3sXRoZYA74xxPuiKK8LdPcGQ=
