@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/hktalent/PipelineHttp"
 	pipHttp "github.com/hktalent/PipelineHttp"
+	"log"
 	"net"
 	"os"
 	"regexp"
@@ -247,29 +248,33 @@ func (r *ManagerScan) processScanObject(object scanObject, g *config.Config) {
 		r.ActiveOutputs.Add(1)
 	}
 	var data respone
-	json.Unmarshal(response, &data)
-	output.IP = data.IP
-	output.Tags = data.Tags
-	output.Vulns = data.Vulns
-	output.Hostnames = data.Hostnames
-	output.UHostname = object.Hostname
-	filteredPorts := []int{}
-	if len(object.Ports) > 0 {
-		for _, port := range data.Ports {
-			if containsInt(object.Ports, port) {
-				filteredPorts = append(filteredPorts, port)
+	err := json.Unmarshal(response, &data)
+	if nil == err {
+		output.IP = data.IP
+		output.Tags = data.Tags
+		output.Vulns = data.Vulns
+		output.Hostnames = data.Hostnames
+		output.UHostname = object.Hostname
+		filteredPorts := []int{}
+		if len(object.Ports) > 0 {
+			for _, port := range data.Ports {
+				if containsInt(object.Ports, port) {
+					filteredPorts = append(filteredPorts, port)
+				}
 			}
+			if len(filteredPorts) == 0 {
+				return
+			}
+		} else {
+			filteredPorts = data.Ports
 		}
-		if len(filteredPorts) == 0 {
-			return
-		}
+		output.Ports, output.OS = Correlate(filteredPorts, data.Cpes, g)
+		output.Start = scanStarted
+		output.End = time.Now()
+		g.Increment(1)
 	} else {
-		filteredPorts = data.Ports
+		log.Printf("processScanObject json.Unmarshal(response, &data) is error: %v \n", err)
 	}
-	output.Ports, output.OS = Correlate(filteredPorts, data.Cpes, g)
-	output.Start = scanStarted
-	output.End = time.Now()
-	g.Increment(1)
 	r.OutputChannel <- output
 }
 
